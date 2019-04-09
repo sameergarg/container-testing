@@ -1,0 +1,1 @@
+INSERT INTO coffees(cof_name, price) VALUES ('espresso', 2);
