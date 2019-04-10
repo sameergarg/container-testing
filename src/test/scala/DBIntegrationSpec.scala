@@ -4,9 +4,7 @@ import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{Matchers, WordSpec}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.duration._
-
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 
 class DBIntegrationSpec extends WordSpec with Matchers with DockerTestKit with DockerPostgresSetup
   with ScalaFutures {
@@ -17,18 +15,14 @@ class DBIntegrationSpec extends WordSpec with Matchers with DockerTestKit with D
   "DB connection" must {
     "be obtained from container" in new InitDockerDB {
       private val eventualCoffees: Future[Seq[Coffee]] = for {
-        _ <- Future(Thread.sleep(2000))//need to wait for postgres to start in container
-        _ <- runFlywayMigration
-        result <- db.run(Coffees.coffees.result.map {
-          _.map {
-            case (name, price) => Coffee(name, price)
-          }
-        })
-      } yield {
-        result
-      }
-
-      Await.ready(isContainerReady(postgresContainer), 10.seconds)
+        _       <- Future(Thread.sleep(2000))//need to wait for postgres to start in container
+        _       <- runFlywayMigration
+        coffees <- db.run(Coffees.coffees.result.map {
+                      _.map {
+                        case (name, price) => Coffee(name, price)
+                      }
+                    })
+      } yield coffees
 
       whenReady(eventualCoffees) { result =>
         result.length should be > 0
