@@ -19,6 +19,7 @@ val dockerTestkitLibs = Seq(
 libraryDependencies ++= Seq(
   "org.flywaydb" % "flyway-core" % "5.2.4",
   "org.postgresql" % "postgresql" % "42.2.5",
+  "io.monix" %% "monix" % "2.3.3",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
 ) ++ 
   slickLibs ++

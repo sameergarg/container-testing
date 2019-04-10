@@ -4,9 +4,10 @@ import com.spotify.docker.client.{DefaultDockerClient, DockerClient}
 import com.whisk.docker.impl.spotify.SpotifyDockerFactory
 import com.whisk.docker.{DockerCommandExecutor, DockerContainer, DockerContainerState, DockerFactory, DockerKit, DockerReadyChecker}
 import com.zaxxer.hikari.{HikariConfig, HikariDataSource}
+import monix.eval.Task
 import org.flywaydb.core.Flyway
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.Try
 
@@ -25,24 +26,22 @@ trait DockerPostgresSetup extends DockerKit with DBConfig {
   private lazy val client: DockerClient = DefaultDockerClient.fromEnv().build()
   override implicit lazy val dockerFactory: DockerFactory = new SpotifyDockerFactory(client)
 
-  lazy val postgresContainer = DockerContainer(dockerImage)
+  lazy val postgresContainer: DockerContainer = DockerContainer(dockerImage)
     .withPorts((containerPort, Some(hostPort)))
     .withEnv(s"POSTGRES_USER=$user", s"POSTGRES_PASSWORD=$password", s"POSTGRES_DB=$database")
-    .withReadyChecker(new PostgresReadyChecker(user, password, Some(containerPort)).looped(10, 1.second))
+    .withReadyChecker(new PostgresReadyChecker().looped(10, 1.second))
 
   // adds our container to the DockerKit's list
   abstract override def dockerContainers: List[DockerContainer] =
     postgresContainer :: super.dockerContainers
 }
 
-class PostgresReadyChecker(user: String,
-                           password: String,
-                           port: Option[Int] = None) extends DockerReadyChecker {
+class PostgresReadyChecker extends DockerReadyChecker with DBConfig {
   override def apply(container: DockerContainerState
-                    )(implicit docker: DockerCommandExecutor, ec: ExecutionContext) = {
+                    )(implicit docker: DockerCommandExecutor, ec: ExecutionContext) : Future[Boolean] = {
 
     container.getPorts().map { ports =>
-      val url = s"jdbc:postgresql://${docker.host}:${port.getOrElse(ports.values.head)}/"
+      val url = s"jdbc:postgresql://localhost:$hostPort/$database?ssl=false"
       Try {
         Class.forName("org.postgresql.Driver")
         Option(DriverManager.getConnection(url, user, password))
@@ -67,11 +66,10 @@ trait InitDockerDB extends DBConfig {
 
   private lazy val dataSource = new HikariDataSource(config)
 
-  def runFlywayMigration(): Future[Unit] = Future.successful {
-    lazy val flyway = Flyway
+  lazy val runFlywayMigration: Task[Unit] = Task.evalOnce {
+    val flyway = Flyway
       .configure()
       .dataSource(dbUrl, user, password)
-      //.dataSource(dataSource)
       .load()
 
     flyway.migrate()
