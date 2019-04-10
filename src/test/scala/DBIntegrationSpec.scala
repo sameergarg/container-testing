@@ -17,7 +17,7 @@ class DBIntegrationSpec extends WordSpec with Matchers with DockerTestKit with D
   "DB connection" must {
     "be obtained from container" in new InitDockerDB {
       private val eventualCoffees: Future[Seq[Coffee]] = for {
-        _ <- Future(Thread.sleep(5000))
+        _ <- Future(Thread.sleep(2000))//need to wait for postgres to start in container
         _ <- runFlywayMigration
         result <- db.run(Coffees.coffees.result.map {
           _.map {

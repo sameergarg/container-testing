@@ -28,13 +28,11 @@ trait DockerPostgresSetup extends DockerKit with DBConfig {
   lazy val postgresContainer = DockerContainer(dockerImage)
     .withPorts((containerPort, Some(hostPort)))
     .withEnv(s"POSTGRES_USER=$user", s"POSTGRES_PASSWORD=$password", s"POSTGRES_DB=$database")
-    .withReadyChecker(new PostgresReadyChecker(user, password, Some(containerPort))
-      .looped(15, 1.second))
+    .withReadyChecker(new PostgresReadyChecker(user, password, Some(containerPort)).looped(10, 1.second))
 
   // adds our container to the DockerKit's list
   abstract override def dockerContainers: List[DockerContainer] =
     postgresContainer :: super.dockerContainers
-
 }
 
 class PostgresReadyChecker(user: String,
@@ -72,7 +70,8 @@ trait InitDockerDB extends DBConfig {
   def runFlywayMigration(): Future[Unit] = Future.successful {
     lazy val flyway = Flyway
       .configure()
-      .dataSource(dataSource)
+      .dataSource(dbUrl, user, password)
+      //.dataSource(dataSource)
       .load()
 
     flyway.migrate()
